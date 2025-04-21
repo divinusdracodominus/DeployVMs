@@ -48,7 +48,7 @@ cat <<EOF > /etc/nixos/configuration.nix
   boot.zfs.poolName = "$POOL_NAME";  # Use your pool name here
   boot.zfs.root = "$ROOT_FS_NAME";   # Root filesystem dataset
 
-  imports = [ "/cfg/system/default.nix" ];
+  # imports = [ "/cfg/system/default.nix" ];
   # Optional: You can add more configurations for ZFS, like compression, etc.
 }
 EOF
