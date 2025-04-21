@@ -44,7 +44,7 @@ cat <<EOF > /etc/nixos/configuration.nix
 {
   boot.loader.grub.device = "/dev/sda";  # Modify to match your disk
   boot.kernelModules = [ "zfs" ];
-  boot.zfs.enable = true;
+  boot.zfs.enabled = true;
   boot.zfs.poolName = "$POOL_NAME";  # Use your pool name here
   boot.zfs.root = "$ROOT_FS_NAME";   # Root filesystem dataset
 
