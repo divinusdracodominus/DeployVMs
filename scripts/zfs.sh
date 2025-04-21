@@ -1,14 +1,8 @@
-#!/usr/bin/env bash
 
-set -euo pipefail
-
-select_disk() {
-  disks=($(ls -l /dev/disk/by-id/ | grep sda | awk '{print $9}'))
-  echo "${disks[0]}"
-}
+set -e
 
 # Configuration
-DISK_BY_ID=$(select_disk)
+DISK_BY_ID="/dev/vda"
 ZPOOL_NAME="rpool"
 MOUNTPOINT="/mnt"
 
@@ -24,11 +18,11 @@ partition_disk() {
 # Create ZFS pool with encryption
 create_zfs_pool() {
   echo "Creating ZFS pool $ZPOOL_NAME with encryption..."
-  local zfs_dev="${DISK_BY_ID}-part2"
+  local zfs_dev="${DISK_BY_ID}2"
   zpool create -f \
     -o ashift=12 \
     -O encryption=on \
-    -O keyformat=raw \
+    -O keyformat=passphrase \
     -O keylocation=prompt \
     -O mountpoint=none \
     "$ZPOOL_NAME" "$zfs_dev"
@@ -45,7 +39,7 @@ create_zfs_root_dataset() {
 # Create EFI partition and mount
 prepare_efi() {
   echo "Formatting and mounting EFI partition..."
-  local efi_dev="${DISK_BY_ID}-part1"
+  local efi_dev="${DISK_BY_ID}1"
   mkfs.vfat -F32 "$efi_dev"
   mkdir -p "$MOUNTPOINT/boot"
   mount "$efi_dev" "$MOUNTPOINT/boot"
