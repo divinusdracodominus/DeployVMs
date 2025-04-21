@@ -11,9 +11,9 @@ ROOT_FS_NAME="$POOL_NAME/root"  # Replace with your dataset name for root
 
 # Install ZFS (if not already installed)
 nixos-rebuild switch --upgrade
-nixos-option nixpkgs.config.packageOverrides = pkgs: {
-  zfs = pkgs.zfs_2_1;
-}
+#nixos-option nixpkgs.config.packageOverrides = pkgs: {
+#  zfs = pkgs.zfs_2_1;
+#}
 nixos-rebuild switch
 
 # Create ZFS Root Dataset (If not already created)
@@ -58,4 +58,4 @@ nixos-rebuild switch
 
 # Verify and reboot
 echo "ZFS root filesystem setup complete. Rebooting system..."
-reboot
+#reboot
