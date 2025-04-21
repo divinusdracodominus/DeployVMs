@@ -1,61 +1,70 @@
-set -e
-# Check if running as root
-if [ "$(id -u)" -ne 0 ]; then
-  echo "This script must be run as root"
-  exit 1
-fi
+#!/usr/bin/env bash
 
-# Variables
-POOL_NAME="mypool"  # Replace with your ZFS pool name
-ROOT_FS_NAME="$POOL_NAME/root"  # Replace with your dataset name for root
+set -euo pipefail
 
-# Install ZFS (if not already installed)
-nixos-rebuild switch --upgrade
-#nixos-option nixpkgs.config.packageOverrides = pkgs: {
-#  zfs = pkgs.zfs_2_1;
-#}
-nixos-rebuild switch
-
-# Create ZFS Root Dataset (If not already created)
-echo "Creating ZFS root dataset..."
-zfs create -o mountpoint=/ -o canmount=off $ROOT_FS_NAME
-zfs mount $ROOT_FS_NAME
-
-# Set ZFS mountpoint to root (if not already set)
-echo "Setting ZFS root mountpoint..."
-zfs set mountpoint=/ $ROOT_FS_NAME
-
-# Ensure ZFS pool is mounted
-echo "Verifying pool is mounted..."
-zpool status $POOL_NAME
-
-# Update /etc/fstab for ZFS root mount
-echo "Updating /etc/fstab..."
-echo "$ROOT_FS_NAME / zfs defaults 0 0" > /etc/fstab
-
-# Create the NixOS configuration to mount ZFS at boot
-echo "Configuring NixOS for ZFS root..."
-
-
-# Add ZFS kernel modules and mount the filesystem at boot
-cat <<EOF > /etc/nixos/configuration.nix
-{ config, pkgs, ... }:
-
-{
-  boot.loader.grub.device = "/dev/sda";  # Modify to match your disk
-  boot.kernelModules = [ "zfs" ];
-  boot.zfs.enabled = true;
-  boot.zfs.poolName = "$POOL_NAME";  # Use your pool name here
-  boot.zfs.root = "$ROOT_FS_NAME";   # Root filesystem dataset
-
-  # imports = [ "/cfg/system/default.nix" ];
-  # Optional: You can add more configurations for ZFS, like compression, etc.
+select_disk() {
+  disks=($(ls -l /dev/disk/by-id/ | grep sda | awk '{print $9}'))
+  echo "${disks[0]}"
 }
-EOF
 
-# Rebuild NixOS configuration
-nixos-rebuild switch
+# Configuration
+DISK_BY_ID=$(select_disk)
+ZPOOL_NAME="rpool"
+MOUNTPOINT="/mnt"
 
-# Verify and reboot
-echo "ZFS root filesystem setup complete. Rebooting system..."
-#reboot
+# Partition disk (GPT with a boot and ZFS partition)
+partition_disk() {
+  echo "Partitioning disk $DISK_BY_ID..."
+  sgdisk --zap-all "$DISK_BY_ID"
+  sgdisk -n1:1M:+512M -t1:EF00 "$DISK_BY_ID"  # EFI partition
+  sgdisk -n2:0:0     -t2:BF01 "$DISK_BY_ID"   # ZFS partition
+  partprobe "$DISK_BY_ID"
+}
+
+# Create ZFS pool with encryption
+create_zfs_pool() {
+  echo "Creating ZFS pool $ZPOOL_NAME with encryption..."
+  local zfs_dev="${DISK_BY_ID}-part2"
+  zpool create -f \
+    -o ashift=12 \
+    -O encryption=on \
+    -O keyformat=raw \
+    -O keylocation=prompt \
+    -O mountpoint=none \
+    "$ZPOOL_NAME" "$zfs_dev"
+}
+
+# Create ZFS dataset for root
+create_zfs_root_dataset() {
+  echo "Creating root dataset..."
+  zfs create -o mountpoint=legacy "$ZPOOL_NAME"/root
+  mkdir -p "$MOUNTPOINT"
+  mount -t zfs "$ZPOOL_NAME"/root "$MOUNTPOINT"
+}
+
+# Create EFI partition and mount
+prepare_efi() {
+  echo "Formatting and mounting EFI partition..."
+  local efi_dev="${DISK_BY_ID}-part1"
+  mkfs.vfat -F32 "$efi_dev"
+  mkdir -p "$MOUNTPOINT/boot"
+  mount "$efi_dev" "$MOUNTPOINT/boot"
+}
+
+# Generate NixOS configuration
+generate_nixos_config() {
+  echo "Generating NixOS config..."
+  nixos-generate-config --root "$MOUNTPOINT"
+}
+
+main() {
+  partition_disk
+  create_zfs_pool
+  create_zfs_root_dataset
+  prepare_efi
+  generate_nixos_config
+
+  echo "Done. Ready for NixOS installation."
+}
+echo $DISK_BY_ID
+main "$@"
