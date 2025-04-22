@@ -21,6 +21,6 @@ in
   users.users.admin = {
     isNormalUser = true;
     extraGroups = ["wheel"];
-    hashedPassword = "$6$fAAMFs26BJWml6JK$JmH7ewEddKrIivmvPGvy7WxzEsfaUWX6UpRNy2p25jHKaNiuwwGzwWfN07DxCMp0T58oSa/D2JZTq2hVBJEJL1";
+    Password = "";
   };
 }
